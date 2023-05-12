@@ -1,3 +1,5 @@
+import axios, { AxiosResponse } from "axios";
+
 const clientId = "ffd2b6481cb84901932381a5ba9e8554";
 const params = new URLSearchParams(window.location.search);
 const code = params.get("code");
@@ -5,16 +7,16 @@ const code = params.get("code");
 if (!code) {
   redirectToAuthCodeFlow(clientId);
 } else {
-  getAccessToken(clientId, code).then((accessToken) => {
-    fetchProfile(accessToken).then((profile) => {
+  getAccessToken(clientId, code).then((accessToken: string) => {
+    fetchProfile(accessToken).then((profile: any) => {
       populateUI(profile);
     });
   });
 }
 
 async function redirectToAuthCodeFlow(clientId: string) {
-  const verifier = generateCodeVerifier(128);
-  const challenge = await generateCodeChallenge(verifier);
+  const verifier: string = generateCodeVerifier(128);
+  const challenge: string = await generateCodeChallenge(verifier);
 
   localStorage.setItem("verifier", verifier);
 
@@ -26,10 +28,10 @@ async function redirectToAuthCodeFlow(clientId: string) {
   params.append("code_challenge_method", "S256");
   params.append("code_challenge", challenge);
 
-  document.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
-async function getAccessToken(clientId: string, code: string) {
+async function getAccessToken(clientId: string, code: string): Promise<string> {
   const verifier = localStorage.getItem("verifier");
 
   const params = new URLSearchParams();
@@ -39,17 +41,20 @@ async function getAccessToken(clientId: string, code: string) {
   params.append("redirect_uri", "http://localhost:5173/callback");
   params.append("code_verifier", verifier!);
 
-  const result = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params,
-  });
+  const response: AxiosResponse = await axios.post(
+    "https://accounts.spotify.com/api/token",
+    params.toString(),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
 
-  const { access_token } = await result.json();
-  return access_token;
+  return response.data.access_token;
 }
 
-function generateCodeVerifier(length: number) {
+function generateCodeVerifier(length: number): string {
   let text = "";
   let possible =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -60,22 +65,24 @@ function generateCodeVerifier(length: number) {
   return text;
 }
 
-async function generateCodeChallenge(codeVerifier: string) {
+async function generateCodeChallenge(codeVerifier: string): Promise<string> {
   const data = new TextEncoder().encode(codeVerifier);
   const digest = await window.crypto.subtle.digest("SHA-256", data);
-  return btoa(String.fromCharCode.apply(null, [...new Uint8Array(digest)]))
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(digest) as any))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 }
 
-async function fetchProfile(code: string) {
-  const result = await fetch("https://api.spotify.com/v1/me", {
-    method: "GET",
-    headers: { Authorization: `Bearer ${code}` },
-  });
+async function fetchProfile(accessToken: string): Promise<any> {
+  const response: AxiosResponse = await axios.get(
+    "https://api.spotify.com/v1/me",
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
 
-  return await result.json();
+  return response.data;
 }
 
 function populateUI(profile: any) {
